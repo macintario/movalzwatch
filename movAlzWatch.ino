@@ -196,7 +196,7 @@ void setupWiFi(){
     }
   });
   ArduinoOTA.begin();
-  Serial.println("Listo");
+  Serial.println("Listo WIFI");
   Serial.print("Direccion IP: ");
   Serial.println(WiFi.localIP());
 
