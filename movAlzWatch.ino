@@ -13,15 +13,29 @@
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <Arduino_JSON.h>
+#include <ESP8266WebServer.h>
+#include <Uri.h>
 #include "wifiauth.h"
 
+typedef struct evento
+{
+  unsigned  seconds;
+  bool      presente;
+} evento;
+
+evento eventos[100];
+
+
 SoftwareSerial puertoSensor(D7, D6); /*Conexìon de la comunicacion con el Sensor*/
-DFRobot_C4001_UART radar(&puertoSensor, 9600);
+DFRobot_C4001_UART radar(&puertoSensor, 9600); //Sensor de presencia
 
 unsigned lastEvent; /* Checar tiempo entre eventos */
 bool lastState = 0; // Al principio no esta
 const char* ssid = STASSID;
 const char* password = STAPSK;
+char hostname[400];
+
 
 void setupESP(void)
 {
@@ -33,6 +47,10 @@ void setupESP(void)
   Serial.println("Empezando");
   pinMode(D5, INPUT); /* Salida del sensor*/
   Serial.println("I/O configurado");
+  snprintf(hostname,400, "alzwatch_%06X",ESP.getChipId());
+  Serial.print("hostname:"); 
+  Serial.println(hostname); 
+
 }
 
 void setupSensor()
@@ -159,8 +177,7 @@ void setupWiFi(){
 /* Preparando OTA */
 
   ArduinoOTA.setPort(8266);
-
-  ArduinoOTA.setHostname("sensmov8266");
+  ArduinoOTA.setHostname(hostname);
 
   ArduinoOTA.setPassword(STAOTAPWD);
 
