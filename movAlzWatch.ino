@@ -27,7 +27,8 @@ typedef struct evento
   bool      presente;
 } evento;
 
-evento eventos[128];
+evento eventos[256];
+unsigned char iEvPtr,fEvPtr;  //eventos se manejara como una cola circular
 
 // local time zone definition (Berlin)
 #define TIMEZONE "CST6"  //Mexico
@@ -62,7 +63,8 @@ void setupESP(void)
     eventos[i].milisegundos=0;
     eventos[i].presente=0;
   }
-  
+  iEvPtr=0;
+  fEvPtr=0;
 }
 
 void setupSensor()
@@ -236,7 +238,7 @@ void handleRoot(){
 
 
   result += "<img src=\"https://www.uam.mx/_imgstc/logouam-variacion6.png\" />";
-  result += "\"<br>Sensor de Movimiento Alzwatch\": " + hostname + "<br>";
+  result += "\"<br>Sensor de Movimiento Alzwatch\": " + String(hostname) + "<br>";
   result += "";
 
   server.sendHeader("Cache-Control", "no-cache");
@@ -251,6 +253,7 @@ void handleSysInfo() {
   LittleFS.info(fs_info);
 
   result += "{\n";
+  result += "  \"host\": " + String(hostname) + ",\n";
   result += "  \"flashSize\": " + String(ESP.getFlashChipSize()) + ",\n";
   result += "  \"freeHeap\": " + String(ESP.getFreeHeap()) + ",\n";
   result += "  \"fsTotalBytes\": " + String(fs_info.totalBytes) + ",\n";
@@ -261,10 +264,35 @@ void handleSysInfo() {
   server.send(200, "text/javascript; charset=utf-8", result);
 }  // handleSysInfo()
 
+void handleEventos() {
+  String result;
+
+/*  Serial.println("handlEv");
+  Serial.println(iEvPtr);
+  Serial.println(fEvPtr);
+  Serial.println(millis());
+*/
+  result += "{\n";
+  for (size_t i = iEvPtr; i < fEvPtr; i++)
+  {
+    result+= String(eventos[i].milisegundos)+":";
+    result+= String(eventos[i].presente)+",\n";
+  }
+  result+= String(millis())+":";
+  result+= String(digitalRead(D5))+",\n";
+
+  result += "}";
+
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send(200, "text/javascript; charset=utf-8", result);
+}  // handleEventos()
+
+
 void setupWebServer(){
   configTime(TIMEZONE, "pool.ntp.org");
   server.on("/", HTTP_GET, handleRoot);
   server.on("/$sysinfo", HTTP_GET, handleSysInfo);
+  server.on("/eventos", HTTP_GET, handleEventos);
   server.begin();
 }
 
@@ -290,6 +318,10 @@ void loop()
   //ver si hubo cambios
   if (state != lastState )
   {
+    
+    eventos[fEvPtr].milisegundos=millis();
+    eventos[fEvPtr].presente = state;
+    fEvPtr++;
     if (state)/* Presencia detectada */
     {
       Serial.println("Presente");
