@@ -18,8 +18,8 @@
 SoftwareSerial puertoSensor(D7, D6); /*Conexìon de la comunicacion con el Sensor*/
 DFRobot_C4001_UART radar(&puertoSensor, 9600);
 
-long lastEvent;
-bool lastState = false;
+unsigned lastEvent; /* Checar tiempo entre eventos */
+bool lastState = 0; // Al principio no esta
 const char* ssid = STASSID;
 const char* password = STAPSK;
 
@@ -39,10 +39,10 @@ void setupSensor()
 {
   while (!radar.begin())
   {
-    Serial.println("Dispositivo no Conectado !");
+    Serial.println("Sensor no Conectado !");
     delay(1000);
   }
-  Serial.println("Dispositivo Conectado!");
+  Serial.println("Sensor Conectado!");
 
   Serial.println("Setting mode...");
   // exist Mode
@@ -53,15 +53,15 @@ void setupSensor()
   data = radar.getStatus();
   //  0 stop  1 start
   Serial.print("work status  = ");
-  Serial.println(data.workStatus);
+  Serial.println(data.workStatus==0?"Stop":"Start");
 
   //  0 is exist   1 speed
   Serial.print("work mode  = ");
-  Serial.println(data.workMode);
+  Serial.println(data.workMode==0?"Presencia":"Velocidad");
 
   //  0 no init    1 init success
   Serial.print("init status = ");
-  Serial.println(data.initStatus);
+  Serial.println(data.initStatus==0?"Sensor No iniciado":"Sensor Ok");
   Serial.println();
 
   /*
@@ -69,7 +69,7 @@ void setupSensor()
    * max Detection range Maximum distance, unit cm, range 2.4~20m (240~2000)
    * trig Detection range Maximum distance, unit cm, default trig = max
    */
-  if (radar.setDetectionRange(/*min*/ 30, /*max*/ 240, /*trig*/ 100))
+  if (radar.setDetectionRange(/*min*/ 30, /*max*/ 240, /*trig*/ 10))
   {
     Serial.println("set detection range successfully!");
   }
@@ -88,7 +88,7 @@ void setupSensor()
    * trig Trigger delay, unit 0.01s, range 0~2s (0~200)
    * keep Maintain the detection timeout, unit 0.5s, range 2~1500 seconds (4~3000)
    */
-  if (radar.setDelay(/*trig*/ 5, /*keep*/ 2))
+  if (radar.setDelay(/*trig*/ 1, /*keep*/ 2))
   {
     Serial.println("set delay successfully!");
   }
@@ -160,7 +160,7 @@ void setupWiFi(){
 
   ArduinoOTA.setPort(8266);
 
-  ArduinoOTA.setHostname("sensoresp8266");
+  ArduinoOTA.setHostname("sensmov8266");
 
   ArduinoOTA.setPassword("uamazc");
 
@@ -210,6 +210,7 @@ void setup()
   setupESP();
   setupWiFi();
   setupSensor();
+  Serial.println("Set up Terminado");
 }
 
 
@@ -219,7 +220,7 @@ void loop()
   // Hay movimiento?
   bool state = digitalRead(D5);
   //ver si hubo cambios
-  if (state != lastState)
+  if (state != lastState )
   {
     if (state)/* Presencia detectada */
     {
@@ -230,6 +231,7 @@ void loop()
       Serial.println("Ausente");
     }
     lastState = state;
+    lastEvent = millis();
   }
   ArduinoOTA.handle(); /* Checar si hay Actualizacion OTA */
   delay(500);
