@@ -17,18 +17,24 @@
 #include <ESP8266WebServer.h>
 #include <Uri.h>
 #include "wifiauth.h"
+#include <FS.h>        // File System for Web Server Files
+#include <LittleFS.h>  // This file system is used.
+
 
 typedef struct evento
 {
-  unsigned  seconds;
+  unsigned  milisegundos;
   bool      presente;
 } evento;
 
-evento eventos[100];
+evento eventos[128];
 
+// local time zone definition (Berlin)
+#define TIMEZONE "CST6"  //Mexico
 
 SoftwareSerial puertoSensor(D7, D6); /*Conexìon de la comunicacion con el Sensor*/
 DFRobot_C4001_UART radar(&puertoSensor, 9600); //Sensor de presencia
+ESP8266WebServer server(80); /* Consulta de eventos */
 
 unsigned lastEvent; /* Checar tiempo entre eventos */
 bool lastState = 0; // Al principio no esta
@@ -50,7 +56,13 @@ void setupESP(void)
   snprintf(hostname,400, "alzwatch_%06X",ESP.getChipId());
   Serial.print("hostname:"); 
   Serial.println(hostname); 
-
+  /* init events*/
+  for (size_t i = 0; i < 128; i++)
+  {
+    eventos[i].milisegundos=0;
+    eventos[i].presente=0;
+  }
+  
 }
 
 void setupSensor()
@@ -216,8 +228,44 @@ void setupWiFi(){
   Serial.println("Listo WIFI");
   Serial.print("Direccion IP: ");
   Serial.println(WiFi.localIP());
+}
+/* WebHandlers */
+
+void handleRoot(){
+  String result;
+
+
+  result += "{\n";
+  result += "  \"Sensor de Movimiento Alzwatch\": " + String(ESP.getChipId()) + ",\n";
+  result += "}";
+
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send(200, "text/javascript; charset=utf-8", result);
 
 }
+
+void handleSysInfo() {
+  String result;
+
+  FSInfo fs_info;
+  LittleFS.info(fs_info);
+
+  result += "{\n";
+  result += "  \"flashSize\": " + String(ESP.getFlashChipSize()) + ",\n";
+  result += "  \"freeHeap\": " + String(ESP.getFreeHeap()) + ",\n";
+  result += "  \"fsTotalBytes\": " + String(fs_info.totalBytes) + ",\n";
+  result += "  \"fsUsedBytes\": " + String(fs_info.usedBytes) + ",\n";
+  result += "}";
+
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send(200, "text/javascript; charset=utf-8", result);
+}  // handleSysInfo()
+
+void setupWebServer(){
+  configTime(TIMEZONE, "pool.ntp.org");
+  server.on("/", HTTP_GET, handleRoot);
+}
+
 
 /*!
  * Setup  punto de entrada
@@ -227,6 +275,7 @@ void setup()
   setupESP();
   setupWiFi();
   setupSensor();
+  setupWebServer();
   Serial.println("Set up Terminado");
 }
 
