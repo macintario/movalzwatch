@@ -235,12 +235,12 @@ void handleRoot(){
   String result;
 
 
-  result += "{\n";
-  result += "  \"Sensor de Movimiento Alzwatch\": " + String(ESP.getChipId()) + ",\n";
-  result += "}";
+  result += "<img src=\"https://www.uam.mx/_imgstc/logouam-variacion6.png\" />";
+  result += "\"<br>Sensor de Movimiento Alzwatch\": " + hostname + "<br>";
+  result += "";
 
   server.sendHeader("Cache-Control", "no-cache");
-  server.send(200, "text/javascript; charset=utf-8", result);
+  server.send(200, "text/html; charset=utf-8", result);
 
 }
 
@@ -264,6 +264,8 @@ void handleSysInfo() {
 void setupWebServer(){
   configTime(TIMEZONE, "pool.ntp.org");
   server.on("/", HTTP_GET, handleRoot);
+  server.on("/$sysinfo", HTTP_GET, handleSysInfo);
+  server.begin();
 }
 
 
@@ -300,5 +302,6 @@ void loop()
     lastEvent = millis();
   }
   ArduinoOTA.handle(); /* Checar si hay Actualizacion OTA */
-  delay(50);
+  server.handleClient(); /* Atender Web */
+  delay(10);
 }
