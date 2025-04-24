@@ -7,7 +7,7 @@
  * @version V1.0
  * @date 2025-04-10
  */
-
+#include <NTPClient.h>
 #include <DFRobot_C4001.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
@@ -19,16 +19,18 @@
 #include "wifiauth.h"
 #include <FS.h>        // File System for Web Server Files
 #include <LittleFS.h>  // This file system is used.
-
+#include <WiFiUdp.h>
 
 typedef struct evento
 {
-  unsigned  milisegundos;
+  unsigned long  tiempo;
   bool      presente;
 } evento;
 
 evento eventos[256];
 unsigned char iEvPtr,fEvPtr;  //eventos se manejara como una cola circular
+WiFiUDP ntpUDP;  /* Para obtener la hora de internet */
+NTPClient timeClient(ntpUDP);
 
 // local time zone definition (Berlin)
 #define TIMEZONE "CST6"  //Mexico
@@ -60,11 +62,13 @@ void setupESP(void)
   /* init events*/
   for (size_t i = 0; i < 128; i++)
   {
-    eventos[i].milisegundos=0;
+    eventos[i].tiempo=0;
     eventos[i].presente=0;
   }
   iEvPtr=0;
   fEvPtr=0;
+  timeClient.begin();
+  timeClient.setTimeOffset(-6*60*60);
 }
 
 void setupSensor()
@@ -275,10 +279,10 @@ void handleEventos() {
   result += "{\n";
   for (size_t i = iEvPtr; i < fEvPtr; i++)
   {
-    result+= String(eventos[i].milisegundos)+":";
+    result+= String(eventos[i].tiempo)+":";
     result+= String(eventos[i].presente)+",\n";
   }
-  result+= String(millis())+":";
+  result+= String(timeClient.getEpochTime())+":";
   result+= String(digitalRead(D5))+",\n";
 
   result += "}";
@@ -296,6 +300,9 @@ void setupWebServer(){
   server.begin();
 }
 
+void limpiaEventos(void){
+  ;  
+}
 
 /*!
  * Setup  punto de entrada
@@ -307,7 +314,7 @@ void setup()
   setupSensor();
   setupWebServer();
   Serial.println("Set up Terminado");
-}
+}  //setup
 
 
 /* Ejecucion continua */
@@ -315,25 +322,29 @@ void loop()
 {
   // Hay movimiento?
   bool state = digitalRead(D5);
+  timeClient.update();
   //ver si hubo cambios
   if (state != lastState )
   {
     
-    eventos[fEvPtr].milisegundos=millis();
+    eventos[fEvPtr].tiempo=timeClient.getEpochTime();
     eventos[fEvPtr].presente = state;
     fEvPtr++;
     if (state)/* Presencia detectada */
     {
-      Serial.println("Presente");
+      Serial.print("Presente ");
+      Serial.println(timeClient.getFormattedTime());
     }
     else
     {
       Serial.println("Ausente");
+      Serial.println(timeClient.getFormattedTime());
     }
     lastState = state;
-    lastEvent = millis();
+    lastEvent = timeClient.getEpochTime();
   }
   ArduinoOTA.handle(); /* Checar si hay Actualizacion OTA */
   server.handleClient(); /* Atender Web */
+  limpiaEventos();
   delay(10);
 }
