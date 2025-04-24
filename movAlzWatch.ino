@@ -162,7 +162,7 @@ void setupWiFi(){
 
   ArduinoOTA.setHostname("sensmov8266");
 
-  ArduinoOTA.setPassword("uamazc");
+  ArduinoOTA.setPassword(STAOTAPWD);
 
   ArduinoOTA.onStart([]() {
     String type;
