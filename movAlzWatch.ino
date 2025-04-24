@@ -234,5 +234,5 @@ void loop()
     lastEvent = millis();
   }
   ArduinoOTA.handle(); /* Checar si hay Actualizacion OTA */
-  delay(500);
+  delay(50);
 }
