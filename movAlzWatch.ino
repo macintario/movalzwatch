@@ -270,7 +270,7 @@ void handleSysInfo() {
 
 void handleEventos() {
   String result;
-
+  const unsigned long offset = 6*60*60; 
 /*  Serial.println("handlEv");
   Serial.println(iEvPtr);
   Serial.println(fEvPtr);
@@ -279,10 +279,10 @@ void handleEventos() {
   result += "{\n";
   for (size_t i = iEvPtr; i < fEvPtr; i++)
   {
-    result+= String(eventos[i].tiempo)+":";
+    result+= String(eventos[i].tiempo+offset)+":";
     result+= String(eventos[i].presente)+",\n";
   }
-  result+= String(timeClient.getEpochTime())+":";
+  result+= String(timeClient.getEpochTime()+offset)+":";
   result+= String(digitalRead(D5))+",\n";
 
   result += "}";
@@ -337,7 +337,7 @@ void loop()
     }
     else
     {
-      Serial.println("Ausente");
+      Serial.print("Ausente  ");
       Serial.println(timeClient.getFormattedTime());
     }
     lastState = state;
