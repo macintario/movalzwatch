@@ -24,7 +24,20 @@
 /* Locales mios con passwords*/
 #include "wifiauth.h"
 #include "tg_certificate.h"
+/* Trabajo con telegram */
+#ifdef ESP8266
+#include <ESP8266WiFi.h>
+BearSSL::WiFiClientSecure tg_client;
+BearSSL::Session   session;
+BearSSL::X509List  certificate(telegram_cert);
 
+#elif defined(ESP32)
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+WiFiClientSecure tg_client;
+#endif
+
+AsyncTelegram2 myBot(tg_client);
 
 typedef struct evento
 {
@@ -73,6 +86,23 @@ void setupESP(void)
   fEvPtr = 0;
   timeClient.begin();
   timeClient.setTimeOffset(-6 * 60 * 60);
+
+  tg_client.setSession(&session);
+  tg_client.setTrustAnchors(&certificate);
+  tg_client.setBufferSizes(1024, 1024);
+}
+
+void setupTelegram()
+{
+myBot.setUpdateTime(2000);
+  myBot.setTelegramToken(TG_TOKEN);
+  myBot.begin();
+  myBot.setUpdateTime(10);
+  char welcome_msg[128];
+  snprintf(welcome_msg, 128, "BOT @%s online\n/help all commands avalaible.", myBot.getBotName());
+
+  // Send a message to specific user who has started your bot
+  myBot.sendTo(TG_USER, welcome_msg);
 }
 
 void setupSensor()
@@ -315,6 +345,7 @@ void setup()
   setupWiFi();
   setupSensor();
   setupWebServer();
+  setupTelegram();
   Serial.println("Set up Terminado");
 } // setup
 
@@ -331,16 +362,24 @@ void loop()
     eventos[fEvPtr].tiempo = timeClient.getEpochTime();
     eventos[fEvPtr].presente = state;
     fEvPtr++;
+    char tg_msg[256];
+  
+    // Send a message to specific user who has started your bot
+  
     if (state) /* Presencia detectada */
     {
       Serial.print("Presente ");
       Serial.println(timeClient.getFormattedTime());
+      snprintf(tg_msg, 256, "%s Sensor %s Presente",timeClient.getFormattedTime(), hostname);
+  
     }
     else
     {
       Serial.print("Ausente  ");
       Serial.println(timeClient.getFormattedTime());
+      snprintf(tg_msg, 256, "%s Sen:%s Ausente",timeClient.getFormattedTime(), hostname);
     }
+    myBot.sendTo(TG_USER, tg_msg);
     lastState = state;
     lastEvent = timeClient.getEpochTime();
   }
