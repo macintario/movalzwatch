@@ -276,16 +276,16 @@ void handleEventos() {
   Serial.println(fEvPtr);
   Serial.println(millis());
 */
-  result += "{\n";
+  result += "{\""+String(hostname)+"\" :[\n";
   for (size_t i = iEvPtr; i < fEvPtr; i++)
   {
-    result+= String(eventos[i].tiempo+offset)+":";
-    result+= String(eventos[i].presente)+",\n";
+    result+= "{\"Tiempo\":"+ String(eventos[i].tiempo+offset)+",";
+    result+=  "\"Presente\":"+String(eventos[i].presente)+"},\n";
   }
-  result+= String(timeClient.getEpochTime()+offset)+":";
-  result+= String(digitalRead(D5))+",\n";
+  result+= "{\"Tiempo\":"+ String(timeClient.getEpochTime()+offset)+",";
+  result+= "\"Presente\":"+String(digitalRead(D5))+"}\n";
 
-  result += "}";
+  result += "]}";
 
   server.sendHeader("Cache-Control", "no-cache");
   server.send(200, "text/javascript; charset=utf-8", result);
