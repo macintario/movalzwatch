@@ -16,35 +16,39 @@
 #include <Arduino_JSON.h>
 #include <ESP8266WebServer.h>
 #include <Uri.h>
-#include "wifiauth.h"
-#include <FS.h>        // File System for Web Server Files
-#include <LittleFS.h>  // This file system is used.
+#include <FS.h>       // File System for Web Server Files
+#include <LittleFS.h> // This file system is used.
 #include <WiFiUdp.h>
+#include <AsyncTelegram2.h>
+
+/* Locales mios con passwords*/
+#include "wifiauth.h"
+#include "tg_certificate.h"
+
 
 typedef struct evento
 {
-  unsigned long  tiempo;
-  bool      presente;
+  unsigned long tiempo;
+  bool presente;
 } evento;
 
 evento eventos[256];
-unsigned char iEvPtr,fEvPtr;  //eventos se manejara como una cola circular
-WiFiUDP ntpUDP;  /* Para obtener la hora de internet */
+unsigned char iEvPtr, fEvPtr; // eventos se manejara como una cola circular
+WiFiUDP ntpUDP;               /* Para obtener la hora de internet */
 NTPClient timeClient(ntpUDP);
 
 // local time zone definition (Berlin)
-#define TIMEZONE "CST6"  //Mexico
+#define TIMEZONE "CST6" // Mexico
 
-SoftwareSerial puertoSensor(D7, D6); /*Conexìon de la comunicacion con el Sensor*/
-DFRobot_C4001_UART radar(&puertoSensor, 9600); //Sensor de presencia
-ESP8266WebServer server(80); /* Consulta de eventos */
+SoftwareSerial puertoSensor(D7, D6);           /*Conexìon de la comunicacion con el Sensor*/
+DFRobot_C4001_UART radar(&puertoSensor, 9600); // Sensor de presencia
+ESP8266WebServer server(80);                   /* Consulta de eventos */
 
 unsigned lastEvent; /* Checar tiempo entre eventos */
 bool lastState = 0; // Al principio no esta
-const char* ssid = STASSID;
-const char* password = STAPSK;
+const char *ssid = STASSID;
+const char *password = STAPSK;
 char hostname[400];
-
 
 void setupESP(void)
 {
@@ -56,19 +60,19 @@ void setupESP(void)
   Serial.println("Empezando");
   pinMode(D5, INPUT); /* Salida del sensor*/
   Serial.println("I/O configurado");
-  snprintf(hostname,400, "alzwatch_%06X",ESP.getChipId());
-  Serial.print("hostname:"); 
-  Serial.println(hostname); 
+  snprintf(hostname, 400, "alzwatch_%06X", ESP.getChipId());
+  Serial.print("hostname:");
+  Serial.println(hostname);
   /* init events*/
   for (size_t i = 0; i < 128; i++)
   {
-    eventos[i].tiempo=0;
-    eventos[i].presente=0;
+    eventos[i].tiempo = 0;
+    eventos[i].presente = 0;
   }
-  iEvPtr=0;
-  fEvPtr=0;
+  iEvPtr = 0;
+  fEvPtr = 0;
   timeClient.begin();
-  timeClient.setTimeOffset(-6*60*60);
+  timeClient.setTimeOffset(-6 * 60 * 60);
 }
 
 void setupSensor()
@@ -89,15 +93,15 @@ void setupSensor()
   data = radar.getStatus();
   //  0 stop  1 start
   Serial.print("work status  = ");
-  Serial.println(data.workStatus==0?"Stop":"Start");
+  Serial.println(data.workStatus == 0 ? "Stop" : "Start");
 
   //  0 is exist   1 speed
   Serial.print("work mode  = ");
-  Serial.println(data.workMode==0?"Presencia":"Velocidad");
+  Serial.println(data.workMode == 0 ? "Presencia" : "Velocidad");
 
   //  0 no init    1 init success
   Serial.print("init status = ");
-  Serial.println(data.initStatus==0?"Sensor No iniciado":"Sensor Ok");
+  Serial.println(data.initStatus == 0 ? "Sensor No iniciado" : "Sensor Ok");
   Serial.println();
 
   /*
@@ -182,24 +186,27 @@ void setupSensor()
   Serial.print("pwm timer = ");
   Serial.println(pwmData.timer);
 }
-void setupWiFi(){
+void setupWiFi()
+{
   Serial.println("Configurando Wifi");
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+  while (WiFi.waitForConnectResult() != WL_CONNECTED)
+  {
     Serial.println("Conexion fallida.  Reiniciando...");
     delay(5000);
     ESP.restart();
   }
 
-/* Preparando OTA */
+  /* Preparando OTA */
 
   ArduinoOTA.setPort(8266);
   ArduinoOTA.setHostname(hostname);
 
   ArduinoOTA.setPassword(STAOTAPWD);
 
-  ArduinoOTA.onStart([]() {
+  ArduinoOTA.onStart([]()
+                     {
     String type;
     if (ArduinoOTA.getCommand() == U_FLASH) {
       type = "sketch";
@@ -208,15 +215,13 @@ void setupWiFi(){
     }
 
     // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-    Serial.println("Empieza Actualizacion " + type);
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\nFin");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progreso: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.println("Empieza Actualizacion " + type); });
+  ArduinoOTA.onEnd([]()
+                   { Serial.println("\nFin"); });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+                        { Serial.printf("Progreso: %u%%\r", (progress / (total / 100))); });
+  ArduinoOTA.onError([](ota_error_t error)
+                     {
     Serial.printf("Error[%u]: ", error);
     if (error == OTA_AUTH_ERROR) {
       Serial.println("FAlla de Autorizacion");
@@ -228,8 +233,7 @@ void setupWiFi(){
       Serial.println("Falla de Recepcion");
     } else if (error == OTA_END_ERROR) {
       Serial.println("Falla de finalizacion");
-    }
-  });
+    } });
   ArduinoOTA.begin();
   Serial.println("Listo WIFI");
   Serial.print("Direccion IP: ");
@@ -237,20 +241,20 @@ void setupWiFi(){
 }
 /* WebHandlers */
 
-void handleRoot(){
+void handleRoot()
+{
   String result;
 
-
-  result += "<img src=\"https://www.uam.mx/_imgstc/logouam-variacion6.png\" />";
-  result += "\"<br>Sensor de Movimiento Alzwatch\": " + String(hostname) + "<br>";
+  result += "<img src=\"https://www.uam.mx/_imgstc/logouam-variacion6.png\"/>";
+  result += "<br>Sensor de Movimiento Alzwatch<br>" + String(hostname) + "<br>";
   result += "";
 
   server.sendHeader("Cache-Control", "no-cache");
   server.send(200, "text/html; charset=utf-8", result);
-
 }
 
-void handleSysInfo() {
+void handleSysInfo()
+{
   String result;
 
   FSInfo fs_info;
@@ -266,33 +270,30 @@ void handleSysInfo() {
 
   server.sendHeader("Cache-Control", "no-cache");
   server.send(200, "text/javascript; charset=utf-8", result);
-}  // handleSysInfo()
+} // handleSysInfo()
 
-void handleEventos() {
+void handleEventos()
+{
   String result;
-  const unsigned long offset = 6*60*60; 
-/*  Serial.println("handlEv");
-  Serial.println(iEvPtr);
-  Serial.println(fEvPtr);
-  Serial.println(millis());
-*/
-  result += "{\""+String(hostname)+"\" :[\n";
+  const unsigned long offset = 6 * 60 * 60;
+
+  result += "{\"" + String(hostname) + "\" :[\n";
   for (size_t i = iEvPtr; i < fEvPtr; i++)
   {
-    result+= "{\"Tiempo\":"+ String(eventos[i].tiempo+offset)+",";
-    result+=  "\"Presente\":"+String(eventos[i].presente)+"},\n";
+    result += "{\"T\":" + String(eventos[i].tiempo + offset) + ",";
+    result += "\"P\":" + String(eventos[i].presente) + "},\n";
   }
-  result+= "{\"Tiempo\":"+ String(timeClient.getEpochTime()+offset)+",";
-  result+= "\"Presente\":"+String(digitalRead(D5))+"}\n";
+  result += "{\"T\":" + String(timeClient.getEpochTime() + offset) + ",";
+  result += "\"P\":" + String(digitalRead(D5)) + "}\n";
 
   result += "]}";
 
   server.sendHeader("Cache-Control", "no-cache");
   server.send(200, "text/javascript; charset=utf-8", result);
-}  // handleEventos()
+} // handleEventos()
 
-
-void setupWebServer(){
+void setupWebServer()
+{
   configTime(TIMEZONE, "pool.ntp.org");
   server.on("/", HTTP_GET, handleRoot);
   server.on("/$sysinfo", HTTP_GET, handleSysInfo);
@@ -300,8 +301,9 @@ void setupWebServer(){
   server.begin();
 }
 
-void limpiaEventos(void){
-  ;  
+void limpiaEventos(void)
+{
+  ;
 }
 
 /*!
@@ -314,8 +316,7 @@ void setup()
   setupSensor();
   setupWebServer();
   Serial.println("Set up Terminado");
-}  //setup
-
+} // setup
 
 /* Ejecucion continua */
 void loop()
@@ -323,14 +324,14 @@ void loop()
   // Hay movimiento?
   bool state = digitalRead(D5);
   timeClient.update();
-  //ver si hubo cambios
-  if (state != lastState )
+  // ver si hubo cambios
+  if (state != lastState)
   {
-    
-    eventos[fEvPtr].tiempo=timeClient.getEpochTime();
+
+    eventos[fEvPtr].tiempo = timeClient.getEpochTime();
     eventos[fEvPtr].presente = state;
     fEvPtr++;
-    if (state)/* Presencia detectada */
+    if (state) /* Presencia detectada */
     {
       Serial.print("Presente ");
       Serial.println(timeClient.getFormattedTime());
@@ -343,7 +344,7 @@ void loop()
     lastState = state;
     lastEvent = timeClient.getEpochTime();
   }
-  ArduinoOTA.handle(); /* Checar si hay Actualizacion OTA */
+  ArduinoOTA.handle();   /* Checar si hay Actualizacion OTA */
   server.handleClient(); /* Atender Web */
   limpiaEventos();
   delay(10);
