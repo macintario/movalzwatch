@@ -28,8 +28,8 @@
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
 BearSSL::WiFiClientSecure tg_client;
-BearSSL::Session   session;
-BearSSL::X509List  certificate(telegram_cert);
+BearSSL::Session session;
+BearSSL::X509List certificate(telegram_cert);
 
 #elif defined(ESP32)
 #include <WiFi.h>
@@ -94,12 +94,12 @@ void setupESP(void)
 
 void setupTelegram()
 {
-myBot.setUpdateTime(2000);
+  myBot.setUpdateTime(2000);
   myBot.setTelegramToken(TG_TOKEN);
   myBot.begin();
   myBot.setUpdateTime(10);
   char welcome_msg[128];
-  snprintf(welcome_msg, 128, "BOT @%s online\n/help all commands avalaible.", myBot.getBotName());
+  snprintf(welcome_msg, 128, "BOT @%s en linea\nSensor:%s", myBot.getBotName(),hostname);
 
   // Send a message to specific user who has started your bot
   myBot.sendTo(TG_USER, welcome_msg);
@@ -331,11 +331,6 @@ void setupWebServer()
   server.begin();
 }
 
-void limpiaEventos(void)
-{
-  ;
-}
-
 /*!
  * Setup  punto de entrada
  */
@@ -349,9 +344,30 @@ void setup()
   Serial.println("Set up Terminado");
 } // setup
 
+void checkTelegram()
+{
+  TBMessage msg;
+  if (myBot.getNewMessage(msg))
+  {
+    Serial.print("User ");
+    Serial.print(msg.sender.username);
+    Serial.print(" send this message: ");
+    Serial.println(msg.text);
+
+    // echo the received message
+    myBot.sendMessage(msg, msg.text);
+  }
+}
+
 /* Ejecucion continua */
 void loop()
 {
+  static uint32_t ledTime = millis();
+  if (millis() - ledTime > 200)
+  {
+    ledTime = millis();
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  }
   // Hay movimiento?
   bool state = digitalRead(D5);
   timeClient.update();
@@ -363,21 +379,20 @@ void loop()
     eventos[fEvPtr].presente = state;
     fEvPtr++;
     char tg_msg[256];
-  
+
     // Send a message to specific user who has started your bot
-  
+
     if (state) /* Presencia detectada */
     {
       Serial.print("Presente ");
       Serial.println(timeClient.getFormattedTime());
-      snprintf(tg_msg, 256, "%s Sensor %s Presente",timeClient.getFormattedTime(), hostname);
-  
+      snprintf(tg_msg, 256, "Sen:%s Presente", hostname);
     }
     else
     {
       Serial.print("Ausente  ");
       Serial.println(timeClient.getFormattedTime());
-      snprintf(tg_msg, 256, "%s Sen:%s Ausente",timeClient.getFormattedTime(), hostname);
+      snprintf(tg_msg, 256, "Sen:%s Ausente", hostname);
     }
     myBot.sendTo(TG_USER, tg_msg);
     lastState = state;
@@ -385,6 +400,6 @@ void loop()
   }
   ArduinoOTA.handle();   /* Checar si hay Actualizacion OTA */
   server.handleClient(); /* Atender Web */
-  limpiaEventos();
+  checkTelegram();
   delay(10);
 }
