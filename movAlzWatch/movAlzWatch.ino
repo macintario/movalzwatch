@@ -11,6 +11,7 @@
 #include <DFRobot_C4001.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
+#include <ESP8266HTTPClient.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <Arduino_JSON.h>
@@ -37,7 +38,7 @@ BearSSL::X509List certificate(telegram_cert);
 WiFiClientSecure tg_client;
 #endif
 
-AsyncTelegram2 myBot(tg_client);
+// AsyncTelegram2 myBot(tg_client);
 
 typedef struct evento
 {
@@ -63,6 +64,8 @@ const char *ssid = STASSID;
 const char *password = STAPSK;
 char hostname[400];
 
+String respberryIP = "";
+
 void setupESP(void)
 {
   Serial.begin(9600);
@@ -86,15 +89,16 @@ void setupESP(void)
   fEvPtr = 0;
   timeClient.begin();
   timeClient.setTimeOffset(-6 * 60 * 60);
-
-  tg_client.setSession(&session);
-  tg_client.setTrustAnchors(&certificate);
-  tg_client.setBufferSizes(1024, 1024);
+  /*
+    tg_client.setSession(&session);
+    tg_client.setTrustAnchors(&certificate);
+    tg_client.setBufferSizes(1024, 1024);
+    */
 }
-
+/*
 void setupTelegram()
 {
-  myBot.setUpdateTime(2000);
+  myBot.setUpdateTime(20000);
   myBot.setTelegramToken(TG_TOKEN);
   myBot.begin();
   myBot.setUpdateTime(10);
@@ -104,7 +108,7 @@ void setupTelegram()
   // Send a message to specific user who has started your bot
   myBot.sendTo(TG_USER, welcome_msg);
 }
-
+*/
 void setupSensor()
 {
   while (!radar.begin())
@@ -265,6 +269,16 @@ void setupWiFi()
       Serial.println("Falla de finalizacion");
     } });
   ArduinoOTA.begin();
+   if (MDNS.begin(hostname))
+  { 
+    Serial.println("mDNS Responder started");
+  }
+  else
+  {
+    Serial.println("Failed to start mDNS responder");
+  }
+  MDNS.addService("http", "http", 80); // Announce an HTTP service on port 80
+ 
   Serial.println("Listo WIFI");
   Serial.print("Direccion IP: ");
   Serial.println(WiFi.localIP());
@@ -278,6 +292,19 @@ void handleRoot()
   result += "<img src=\"https://www.uam.mx/_imgstc/logouam-variacion6.png\"/>";
   result += "<br>Sensor de Movimiento Alzwatch<br>" + String(hostname) + "<br>";
   result += "";
+
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send(200, "text/html; charset=utf-8", result);
+}
+
+void handleRaspberry()
+{
+  String result;
+
+  result += "Raspberry on:";
+  raspberryIP = server.client().remoteIP().toString();
+  result += raspberryIP;
+  Serial.println(result);
 
   server.sendHeader("Cache-Control", "no-cache");
   server.send(200, "text/html; charset=utf-8", result);
@@ -328,7 +355,30 @@ void setupWebServer()
   server.on("/", HTTP_GET, handleRoot);
   server.on("/$sysinfo", HTTP_GET, handleSysInfo);
   server.on("/eventos", HTTP_GET, handleEventos);
+  server.on("/raspberry", HTTP_GET, handleRaspberry);
   server.begin();
+}
+
+void enviaCambioEstado(){
+  WiFiClient client;
+  HTTPClient http;  
+  http.begin(client, "uam.local/cambio");
+ int httpResponseCode = http.GET();
+  
+  String payload = "--"; 
+  
+  if (httpResponseCode>0) {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    payload = http.getString();
+  }
+  else {
+    Serial.print("Error code: ");
+    Serial.println(httpResponseCode);
+  }
+  // Free resources
+  http.end();
+
 }
 
 /*!
@@ -338,12 +388,12 @@ void setup()
 {
   setupESP();
   setupWiFi();
-  setupSensor();
   setupWebServer();
-  setupTelegram();
+  setupSensor();
+  /*setupTelegram();*/
   Serial.println("Set up Terminado");
 } // setup
-
+/*
 void checkTelegram()
 {
   TBMessage msg;
@@ -358,7 +408,7 @@ void checkTelegram()
     myBot.sendMessage(msg, msg.text);
   }
 }
-
+*/
 /* Ejecucion continua */
 void loop()
 {
@@ -366,7 +416,7 @@ void loop()
   if (millis() - ledTime > 200)
   {
     ledTime = millis();
-    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    // digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   }
   // Hay movimiento?
   bool state = digitalRead(D5);
@@ -387,6 +437,7 @@ void loop()
       Serial.print("Presente ");
       Serial.println(timeClient.getFormattedTime());
       snprintf(tg_msg, 256, "Sen:%s Presente", hostname);
+
     }
     else
     {
@@ -394,12 +445,13 @@ void loop()
       Serial.println(timeClient.getFormattedTime());
       snprintf(tg_msg, 256, "Sen:%s Ausente", hostname);
     }
-    myBot.sendTo(TG_USER, tg_msg);
+    // myBot.sendTo(TG_USER, tg_msg);
     lastState = state;
     lastEvent = timeClient.getEpochTime();
   }
+  MDNS.update();
   ArduinoOTA.handle();   /* Checar si hay Actualizacion OTA */
   server.handleClient(); /* Atender Web */
-  checkTelegram();
+  /*checkTelegram();*/
   delay(10);
 }
